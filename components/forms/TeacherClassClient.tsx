@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Pencil, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Pencil, X } from "lucide-react";
 import { format } from "date-fns";
 import { REASON_LABELS } from "@/lib/constants";
 import {
@@ -22,6 +22,9 @@ import { normalizeBirthCert } from "@/lib/birth-cert";
 import type { getTeacherClasses } from "@/lib/actions/teacher";
 
 type ClassData = Awaited<ReturnType<typeof getTeacherClasses>>[number];
+type StudentRow = ClassData["students"][number];
+type SortColumn = "birthCert" | "studentNo" | "name" | "appointmentCount" | "lastDate" | "reason";
+type SortDirection = "asc" | "desc";
 
 type StudentDraft = {
   studentNo: string;
@@ -32,6 +35,75 @@ type StudentDraft = {
 
 function birthCertChanged(current: string, original: string) {
   return normalizeBirthCert(current) !== normalizeBirthCert(original);
+}
+
+function lastAppointmentDate(student: StudentRow): Date | null {
+  const last = student.appointments[0];
+  if (!last) return null;
+  return last.slot?.date ?? last.bookedAt;
+}
+
+function lastAppointmentReason(student: StudentRow): string {
+  const last = student.appointments[0];
+  return last ? REASON_LABELS[last.reason] : "";
+}
+
+function compareStudents(a: StudentRow, b: StudentRow, column: SortColumn, direction: SortDirection) {
+  const factor = direction === "asc" ? 1 : -1;
+
+  switch (column) {
+    case "birthCert":
+      return factor * (a.birthCert ?? "").localeCompare(b.birthCert ?? "", "ms");
+    case "studentNo":
+      return factor * a.studentNo.localeCompare(b.studentNo, "ms", { numeric: true });
+    case "name":
+      return factor * a.name.localeCompare(b.name, "ms");
+    case "appointmentCount":
+      return factor * (a.appointments.length - b.appointments.length);
+    case "lastDate": {
+      const aDate = lastAppointmentDate(a);
+      const bDate = lastAppointmentDate(b);
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      return factor * (aDate.getTime() - bDate.getTime());
+    }
+    case "reason":
+      return factor * lastAppointmentReason(a).localeCompare(lastAppointmentReason(b), "ms");
+  }
+}
+
+function SortableHeader({
+  label,
+  column,
+  activeColumn,
+  direction,
+  onSort,
+}: {
+  label: string;
+  column: SortColumn;
+  activeColumn: SortColumn | null;
+  direction: SortDirection;
+  onSort: (column: SortColumn) => void;
+}) {
+  const active = activeColumn === column;
+  const Icon = active ? (direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <th className="pb-2 pr-4">
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={cn(
+          "inline-flex items-center gap-1 font-medium transition-colors hover:text-slate-800",
+          active ? "text-slate-800" : "text-slate-500"
+        )}
+      >
+        {label}
+        <Icon className={cn("h-3.5 w-3.5", active ? "text-teal-700" : "text-slate-400")} />
+      </button>
+    </th>
+  );
 }
 
 function CollapsibleSection({
@@ -84,6 +156,23 @@ function ClassStudentTable({
   onSave: () => void;
   saving: boolean;
 }) {
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedStudents = useMemo(() => {
+    if (!sortColumn) return cls.students;
+    return [...cls.students].sort((a, b) => compareStudents(a, b, sortColumn, sortDirection));
+  }, [cls.students, sortColumn, sortDirection]);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
@@ -113,16 +202,52 @@ function ClassStudentTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-slate-500">
-              <th className="pb-2 pr-4">No. Sijil Lahir</th>
-              <th className="pb-2 pr-4">No. Murid</th>
-              <th className="pb-2 pr-4">Nama</th>
-              <th className="pb-2 pr-4">Bil. Temujanji</th>
-              <th className="pb-2 pr-4">Terakhir</th>
-              <th className="pb-2">Sebab</th>
+              <SortableHeader
+                label="No. Sijil Lahir"
+                column="birthCert"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="No. Murid"
+                column="studentNo"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Nama"
+                column="name"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Bil. Temujanji"
+                column="appointmentCount"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Terakhir"
+                column="lastDate"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Sebab"
+                column="reason"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
             </tr>
           </thead>
           <tbody>
-            {cls.students.map((s) => {
+            {sortedStudents.map((s) => {
               const last = s.appointments[0];
               const draft = drafts[s.id];
               return (
@@ -169,7 +294,7 @@ function ClassStudentTable({
                 </tr>
               );
             })}
-            {cls.students.length === 0 && (
+            {sortedStudents.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-4 text-slate-400">
                   Tiada murid
@@ -456,7 +581,15 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
                     : "Murid tanpa temujanji dibuang, kemudian senarai dari fail dimuat naik. Murid dengan temujanji dikekalkan."}
                 </p>
               </div>
-              <p className="text-xs text-slate-500">Lajur: No Murid, Nama, No Sijil Lahir</p>
+              <p className="text-xs text-slate-500">
+                Lajur: No Murid, Nama, No Sijil Lahir. Muat turun templat untuk format yang betul.
+              </p>
+              <Button type="button" variant="outline" asChild>
+                <a href="/api/teacher/students/template" download="templat-senarai-murid.xlsx">
+                  <Download className="mr-1 h-4 w-4" />
+                  Muat Turun Templat
+                </a>
+              </Button>
               <Input type="file" name="file" accept=".xlsx,.xls,.csv" required />
               <Button type="submit" disabled={pending || classes.length === 0}>
                 Muat Naik

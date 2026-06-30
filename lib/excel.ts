@@ -103,3 +103,32 @@ export function exportToCsv(headers: string[], rows: string[][]): string {
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   return [headers.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
 }
+
+const CLASS_STUDENT_TEMPLATE_HEADERS = ["No Murid", "Nama", "No Sijil Lahir"] as const;
+
+/** Excel template for teacher class student import (matches parseClassStudentExcel). */
+export function generateClassStudentTemplate(): Buffer {
+  const dataSheet = XLSX.utils.aoa_to_sheet([
+    [...CLASS_STUDENT_TEMPLATE_HEADERS],
+    ["1001", "Ahmad bin Abdullah", "120101011234"],
+    ["1002", "Siti binti Hassan", "120215025678"],
+  ]);
+  dataSheet["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 18 }];
+
+  const guideSheet = XLSX.utils.aoa_to_sheet([
+    ["Panduan Import Senarai Murid"],
+    [],
+    ["1. Pilih kelas dalam borang import sebelum muat naik fail."],
+    ["2. Isi data pada sheet \"Murid\". Jangan ubah nama lajur pada baris pertama."],
+    ["3. Lajur diperlukan: No Murid, Nama, No Sijil Lahir."],
+    ["4. No. Sijil Lahir mesti 12 digit (contoh: 120101011234 atau 120101-01-1234)."],
+    ["5. Padam baris contoh jika tidak diperlukan sebelum muat naik."],
+    ["6. Tahun dan nama kelas tidak perlu dalam fail — kelas dipilih dalam borang."],
+  ]);
+  guideSheet["!cols"] = [{ wch: 72 }];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, dataSheet, "Murid");
+  XLSX.utils.book_append_sheet(workbook, guideSheet, "Panduan");
+  return Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+}

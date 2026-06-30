@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { format, addDays } from "date-fns";
+import { ms } from "date-fns/locale";
 import { SLOT_TIMES } from "@/lib/constants";
+import { parseDateInput } from "@/lib/date-utils";
 import { toggleSlotAction } from "@/lib/actions/teacher";
 import { BulkSlotSection } from "@/components/forms/BulkSlotSection";
 import { Button } from "@/components/ui/button";
@@ -48,7 +50,8 @@ export function TeacherSlotsClient({
     });
   };
 
-  const date = new Date(dateStr);
+  const date = parseDateInput(dateStr);
+  const dateLabel = format(date, "EEEE, dd MMM yyyy", { locale: ms });
   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
   return (
@@ -80,13 +83,14 @@ export function TeacherSlotsClient({
           >
             →
           </Button>
+          <span className="text-sm font-medium text-slate-700">{dateLabel}</span>
           {isWeekend && <span className="text-sm text-amber-600">Hujung minggu</span>}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Slot {format(date, "dd MMM yyyy")}</CardTitle>
+          <CardTitle>Slot — {dateLabel}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">

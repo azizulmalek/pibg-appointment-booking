@@ -1,6 +1,9 @@
 import { prisma } from "./prisma";
-import { startOfDay, endOfDay, eachDayOfInterval, getDay, parseISO } from "date-fns";
+import { startOfDay, endOfDay, eachDayOfInterval, getDay } from "date-fns";
 import { SLOT_TIMES } from "./constants";
+import { parseDateInput } from "./date-utils";
+
+export { parseDateInput };
 
 export function isWeekday(date: Date): boolean {
   const day = getDay(date);
@@ -137,10 +140,6 @@ export async function isDateBlackedOut(date: Date): Promise<{ blocked: boolean; 
     },
   });
   return blackout ? { blocked: true, title: blackout.title } : { blocked: false };
-}
-
-export function parseDateInput(value: string): Date {
-  return startOfDay(parseISO(value));
 }
 
 export { startOfDay, endOfDay };
