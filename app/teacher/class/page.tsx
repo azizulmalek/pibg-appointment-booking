@@ -11,7 +11,7 @@ export default async function TeacherClassPage() {
   const classes = await getTeacherClasses(session.user.teacherId);
 
   return (
-    <StaffLayout role="TEACHER" title="Kelas">
+    <StaffLayout role="TEACHER" title="Senarai Murid">
       <TeacherClassClient classes={classes} />
     </StaffLayout>
   );

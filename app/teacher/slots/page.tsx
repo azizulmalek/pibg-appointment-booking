@@ -13,7 +13,7 @@ export default async function TeacherSlotsPage() {
   const slots = await getTeacherSlotsForDate(session.user.teacherId, today);
 
   return (
-    <StaffLayout role="TEACHER" title="Slot">
+    <StaffLayout role="TEACHER" title="Aturan Slot">
       <TeacherSlotsClient
         initialDate={today}
         initialSlots={slots.map((s) => ({

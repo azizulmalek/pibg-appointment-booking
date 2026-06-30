@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ms" className={`${jakarta.variable} h-full antialiased`}>
+    <html lang="ms" className={`${jakarta.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full">
         <Providers>{children}</Providers>
       </body>
