@@ -18,6 +18,7 @@ import {
   upsertTeacherSlot,
 } from "@/lib/slots";
 import { updateAppointmentStatus, rescheduleAppointment, BookingError } from "@/lib/booking";
+import { getActiveAcademicSession } from "@/lib/session";
 
 async function getTeacherId() {
   const session = await requireAuth(["TEACHER"]);
@@ -26,7 +27,7 @@ async function getTeacherId() {
 }
 
 export async function getTeacherDashboard(teacherId: string) {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return null;
 
   const classes = await prisma.class.findMany({
@@ -103,7 +104,7 @@ export async function createClassAction(yearLevel: number, name: string) {
   const teacherId = await getTeacherId();
   if (!teacherId) return { error: "Tidak dibenarkan." };
 
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return { error: "Tiada sesi aktif." };
 
   const yearLevelRecord = await prisma.schoolYearLevel.findUnique({ where: { level: yearLevel } });
@@ -166,7 +167,7 @@ export async function batchUpdateStudentsAction(payload: {
   const { classId, updates } = payload;
   if (!classId || updates.length === 0) return { error: "Data tidak lengkap." };
 
-  const activeSession = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const activeSession = await getActiveAcademicSession();
   if (!activeSession) return { error: "Tiada sesi aktif." };
 
   const cls = await prisma.class.findFirst({
@@ -213,6 +214,40 @@ export async function batchUpdateStudentsAction(payload: {
   }
 }
 
+export async function deleteStudentsAction(payload: { classId: string; studentIds: string[] }) {
+  const teacherId = await getTeacherId();
+  if (!teacherId) return { error: "Tidak dibenarkan." };
+
+  const { classId, studentIds } = payload;
+  if (!classId || studentIds.length === 0) return { error: "Tiada murid dipilih." };
+
+  const activeSession = await getActiveAcademicSession();
+  if (!activeSession) return { error: "Tiada sesi aktif." };
+
+  const cls = await prisma.class.findFirst({
+    where: { id: classId, teacherId, sessionId: activeSession.id },
+  });
+  if (!cls) return { error: "Kelas tidak dijumpai." };
+
+  const students = await prisma.student.findMany({
+    where: { id: { in: studentIds }, classId: cls.id },
+  });
+
+  if (students.length !== studentIds.length) {
+    return { error: "Sebahagian murid tidak dijumpai dalam kelas ini." };
+  }
+
+  await prisma.student.deleteMany({ where: { id: { in: studentIds }, classId: cls.id } });
+
+  revalidatePath("/teacher/class");
+
+  return {
+    success: true,
+    deleted: students.length,
+    message: `${students.length} murid dipadam.`,
+  };
+}
+
 export async function importStudentsToClassAction(formData: FormData) {
   const teacherId = await getTeacherId();
   if (!teacherId) return { error: "Tidak dibenarkan." };
@@ -234,21 +269,10 @@ export async function importStudentsToClassAction(formData: FormData) {
 
   let imported = 0;
   let removed = 0;
-  let skipped = 0;
 
   if (mode === "replace") {
-    const existing = await prisma.student.findMany({
-      where: { classId },
-      include: { _count: { select: { appointments: true } } },
-    });
-    for (const student of existing) {
-      if (student._count.appointments === 0) {
-        await prisma.student.delete({ where: { id: student.id } });
-        removed++;
-      } else {
-        skipped++;
-      }
-    }
+    const result = await prisma.student.deleteMany({ where: { classId } });
+    removed = result.count;
   }
 
   for (const row of rows) {
@@ -272,7 +296,9 @@ export async function importStudentsToClassAction(formData: FormData) {
         try {
           const fields = birthCertStorageFields(row.birthCert);
           await prisma.student.update({
-            where: { studentNo: row.studentNo },
+            where: {
+              sessionId_studentNo: { sessionId: cls.sessionId, studentNo: row.studentNo },
+            },
             data: {
               name: row.name,
               birthCertLookup: fields.birthCertLookup,
@@ -291,7 +317,6 @@ export async function importStudentsToClassAction(formData: FormData) {
   revalidatePath("/teacher/class");
   const parts = [`${imported} murid diimport`];
   if (mode === "replace" && removed > 0) parts.push(`${removed} murid dibuang`);
-  if (mode === "replace" && skipped > 0) parts.push(`${skipped} murid dengan temujanji dikekalkan`);
   return { success: true, imported, message: parts.join(", ") + "." };
 }
 
@@ -306,7 +331,7 @@ export async function importStudentsAction(formData: FormData) {
   const { rows, errors } = parseStudentExcel(buffer);
   if (errors.length > 0) return { error: errors.join("\n") };
 
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return { error: "Tiada sesi aktif." };
 
   let imported = 0;
@@ -347,7 +372,7 @@ export async function importStudentsAction(formData: FormData) {
 }
 
 export async function getTeacherClasses(teacherId: string) {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return [];
 
   const classes = await prisma.class.findMany({
@@ -362,6 +387,7 @@ export async function getTeacherClasses(teacherId: string) {
             take: 1,
             include: { slot: true },
           },
+          _count: { select: { appointments: true } },
         },
       },
     },
@@ -458,7 +484,7 @@ export async function getTeacherSlotsForDate(teacherId: string, dateStr: string)
 }
 
 export async function getTeacherAppointments(teacherId: string) {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return [];
 
   return prisma.appointment.findMany({

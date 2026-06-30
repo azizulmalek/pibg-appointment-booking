@@ -11,13 +11,14 @@ import { parseStudentExcel, exportToCsv } from "@/lib/excel";
 import { parseDateInput } from "@/lib/slots";
 import { REASON_LABELS, STATUS_LABELS } from "@/lib/constants";
 import { format } from "date-fns";
+import { getActiveAcademicSession } from "@/lib/session";
 
 async function requireAdmin() {
   return requireAuth(["ADMIN"]);
 }
 
 export async function getAdminDashboard() {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return null;
 
   const [teachers, students, appointments, todayAppts, blackouts, auditLogs] = await Promise.all([
@@ -264,7 +265,7 @@ export async function importStudentsAdminAction(formData: FormData) {
   const { rows, errors } = parseStudentExcel(buffer);
   if (errors.length > 0) return { error: errors.join("\n") };
 
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return { error: "Tiada sesi aktif." };
 
   let imported = 0;
@@ -321,7 +322,7 @@ export async function importStudentsAdminAction(formData: FormData) {
 }
 
 export async function getAllStudents() {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return [];
 
   return prisma.student.findMany({
@@ -406,7 +407,7 @@ export async function createSessionAction(formData: FormData) {
 }
 
 export async function getMonitorData() {
-  const session = await prisma.academicSession.findFirst({ where: { isActive: true } });
+  const session = await getActiveAcademicSession();
   if (!session) return { appointments: [], classes: [] };
 
   const [appointments, classes] = await Promise.all([
@@ -448,7 +449,7 @@ export async function exportAppointmentsCsv() {
 
 export async function getLandingData() {
   const [session, blackouts] = await Promise.all([
-    prisma.academicSession.findFirst({ where: { isActive: true } }),
+    getActiveAcademicSession(),
     prisma.blackoutDate.findMany({
       where: { endDate: { gte: new Date() } },
       orderBy: { startDate: "asc" },

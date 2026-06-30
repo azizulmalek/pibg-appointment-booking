@@ -39,6 +39,9 @@ export function AdminStudentsClient({
           <CardTitle>Sesi Akademik</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-slate-500">
+            Sesi baharu diaktifkan secara automatik pada awal setiap tahun kalendar. Data sesi lama kekal sebagai arkib.
+          </p>
           <ul className="space-y-2 text-sm">
             {sessions.map((s) => (
               <li key={s.id} className="flex items-center justify-between rounded-lg border px-3 py-2">

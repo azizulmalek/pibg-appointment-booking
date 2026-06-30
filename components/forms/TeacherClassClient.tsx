@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Pencil, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Pencil, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { REASON_LABELS } from "@/lib/constants";
 import {
   createClassAction,
   addStudentAction,
   batchUpdateStudentsAction,
+  deleteStudentsAction,
   importStudentsToClassAction,
 } from "@/lib/actions/teacher";
 import { Button } from "@/components/ui/button";
@@ -145,7 +146,9 @@ function ClassStudentTable({
   onStartEdit,
   onCancelEdit,
   onSave,
+  onDeleteStudents,
   saving,
+  deleting,
 }: {
   cls: ClassData;
   editing: boolean;
@@ -154,10 +157,13 @@ function ClassStudentTable({
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSave: () => void;
+  onDeleteStudents: (studentIds: string[]) => void;
   saving: boolean;
+  deleting: boolean;
 }) {
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -173,6 +179,56 @@ function ClassStudentTable({
     return [...cls.students].sort((a, b) => compareStudents(a, b, sortColumn, sortDirection));
   }, [cls.students, sortColumn, sortDirection]);
 
+  const deletableStudents = useMemo(() => sortedStudents, [sortedStudents]);
+
+  const allDeletableSelected =
+    deletableStudents.length > 0 && deletableStudents.every((s) => selectedIds.has(s.id));
+
+  const toggleSelectAll = () => {
+    if (allDeletableSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(deletableStudents.map((s) => s.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    onDeleteStudents(Array.from(selectedIds));
+  };
+
+  const deleteOne = (id: string) => {
+    onDeleteStudents([id]);
+  };
+
+  useEffect(() => {
+    if (!editing) setSelectedIds(new Set());
+  }, [editing]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const valid = new Set(cls.students.map((s) => s.id));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [cls.students]);
+
+  const handleCancel = () => {
+    setSelectedIds(new Set());
+    onCancelEdit();
+  };
+
+  const colSpan = editing ? 8 : 6;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
@@ -182,11 +238,21 @@ function ClassStudentTable({
         <div className="flex gap-2">
           {editing ? (
             <>
-              <Button type="button" variant="outline" size="sm" onClick={onCancelEdit} disabled={saving}>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={deleteSelected}
+                disabled={saving || deleting || selectedIds.size === 0}
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                Padam Terpilih
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleCancel} disabled={saving || deleting}>
                 <X className="mr-1 h-4 w-4" />
                 Batal
               </Button>
-              <Button type="button" size="sm" onClick={onSave} disabled={saving}>
+              <Button type="button" size="sm" onClick={onSave} disabled={saving || deleting}>
                 {saving ? "Menyimpan..." : "Simpan"}
               </Button>
             </>
@@ -202,6 +268,18 @@ function ClassStudentTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-slate-500">
+              {editing && (
+                <th className="w-10 pb-2 pr-2">
+                  <input
+                    type="checkbox"
+                    checked={allDeletableSelected}
+                    onChange={toggleSelectAll}
+                    disabled={deleting || deletableStudents.length === 0}
+                    aria-label="Pilih semua murid yang boleh dipadam"
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                </th>
+              )}
               <SortableHeader
                 label="No. Sijil Lahir"
                 column="birthCert"
@@ -244,6 +322,7 @@ function ClassStudentTable({
                 direction={sortDirection}
                 onSort={handleSort}
               />
+              {editing && <th className="w-10 pb-2" />}
             </tr>
           </thead>
           <tbody>
@@ -252,6 +331,18 @@ function ClassStudentTable({
               const draft = drafts[s.id];
               return (
                 <tr key={s.id} className="border-b border-slate-100">
+                  {editing && (
+                    <td className="py-2 pr-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                        disabled={deleting}
+                        aria-label={`Pilih ${s.name}`}
+                        className="h-4 w-4 rounded border-slate-300 disabled:opacity-40"
+                      />
+                    </td>
+                  )}
                   <td className="py-2 pr-4">
                     {editing ? (
                       <Input
@@ -291,12 +382,27 @@ function ClassStudentTable({
                     {last ? format(last.slot?.date ?? last.bookedAt, "dd/MM/yyyy") : "—"}
                   </td>
                   <td className="py-2">{last ? REASON_LABELS[last.reason] : "—"}</td>
+                  {editing && (
+                    <td className="py-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => deleteOne(s.id)}
+                        disabled={deleting}
+                        aria-label={`Padam ${s.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {sortedStudents.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 text-slate-400">
+                <td colSpan={colSpan} className="py-4 text-slate-400">
                   Tiada murid
                 </td>
               </tr>
@@ -305,7 +411,7 @@ function ClassStudentTable({
         </table>
         {editing && (
           <p className="mt-3 text-xs text-slate-500">
-            Biarkan No. Sijil Lahir kosong jika tiada perubahan.
+            Biarkan No. Sijil Lahir kosong jika tiada perubahan. Gunakan kotak semak untuk pilih berbilang murid, atau ikon tong sampah untuk padam satu murid.
           </p>
         )}
       </CardContent>
@@ -323,9 +429,11 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
   const [importMode, setImportMode] = useState<"add" | "replace">("add");
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, StudentDraft>>({});
+  const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
 
   const startEdit = (cls: ClassData) => {
     setError(null);
+    setMessage(null);
     setEditingClassId(cls.id);
     const next: Record<string, StudentDraft> = {};
     for (const s of cls.students) {
@@ -355,18 +463,27 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
   const saveEdits = (classId: string, studentIds: string[]) => {
     setError(null);
     startTransition(async () => {
-      const updates = studentIds.map((id) => {
-        const draft = drafts[id];
-        const birthCertValue = draft?.birthCert?.trim() ?? "";
-        const shouldUpdateBirthCert =
-          birthCertValue.length > 0 && birthCertChanged(birthCertValue, draft?.originalBirthCert ?? "");
-        return {
-          id,
-          studentNo: draft?.studentNo ?? "",
-          name: draft?.name ?? "",
-          birthCert: shouldUpdateBirthCert ? birthCertValue : undefined,
-        };
-      });
+      const updates = studentIds
+        .filter((id) => drafts[id])
+        .map((id) => {
+          const draft = drafts[id];
+          const birthCertValue = draft?.birthCert?.trim() ?? "";
+          const shouldUpdateBirthCert =
+            birthCertValue.length > 0 && birthCertChanged(birthCertValue, draft?.originalBirthCert ?? "");
+          return {
+            id,
+            studentNo: draft?.studentNo ?? "",
+            name: draft?.name ?? "",
+            birthCert: shouldUpdateBirthCert ? birthCertValue : undefined,
+          };
+        });
+
+      if (updates.length === 0) {
+        setEditingClassId(null);
+        setDrafts({});
+        return;
+      }
+
       const result = await batchUpdateStudentsAction({ classId, updates });
       if (result.error) {
         setError(result.error);
@@ -374,6 +491,34 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
         setMessage("Senarai murid berjaya dikemaskini.");
         setEditingClassId(null);
         setDrafts({});
+        router.refresh();
+      }
+    });
+  };
+
+  const deleteStudents = (classId: string, studentIds: string[]) => {
+    setError(null);
+    setMessage(null);
+    setDeletingClassId(classId);
+    startTransition(async () => {
+      const result = await deleteStudentsAction({ classId, studentIds });
+      setDeletingClassId(null);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setMessage(result.message ?? `${result.deleted ?? 0} murid dipadam.`);
+        setDrafts((prev) => {
+          const next = { ...prev };
+          for (const id of studentIds) delete next[id];
+          return next;
+        });
+        if (editingClassId === classId) {
+          const cls = classes.find((c) => c.id === classId);
+          if (cls && cls.students.every((s) => studentIds.includes(s.id))) {
+            setEditingClassId(null);
+            setDrafts({});
+          }
+        }
         router.refresh();
       }
     });
@@ -390,7 +535,8 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
       {classes.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-slate-500">
-            Tiada kelas lagi. Tambah kelas di bawah untuk mula.
+            <p>Tiada kelas untuk sesi {new Date().getFullYear()}.</p>
+            <p className="mt-2 text-sm">Tambah kelas di bawah, kemudian import atau tambah murid.</p>
           </CardContent>
         </Card>
       ) : (
@@ -404,7 +550,9 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
             onStartEdit={() => startEdit(cls)}
             onCancelEdit={cancelEdit}
             onSave={() => saveEdits(cls.id, cls.students.map((s) => s.id))}
-            saving={pending && editingClassId === cls.id}
+            onDeleteStudents={(ids) => deleteStudents(cls.id, ids)}
+            saving={pending && editingClassId === cls.id && !deletingClassId}
+            deleting={pending && deletingClassId === cls.id}
           />
         ))
       )}
@@ -578,7 +726,7 @@ export function TeacherClassClient({ classes }: { classes: ClassData[] }) {
                 <p className="text-xs text-slate-500">
                   {importMode === "add"
                     ? "Murid baharu ditambah; rekod sedia ada dikekalkan."
-                    : "Murid tanpa temujanji dibuang, kemudian senarai dari fail dimuat naik. Murid dengan temujanji dikekalkan."}
+                    : "Senarai sedia ada diganti sepenuhnya dengan data dari fail."}
                 </p>
               </div>
               <p className="text-xs text-slate-500">
