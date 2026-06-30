@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum AppointmentReason {
+  GENERAL
+  MIDTERM
+  FINAL
+}
+
+enum AppointmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESCHEDULED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  name         String
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  teacher      Teacher?
+  auditLogs    AuditLog[]
+  blackouts    BlackoutDate[]
+}
+
+model Teacher {
+  id        String        @id @default(cuid())
+  userId    String        @unique
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffNo   String        @unique
+  subject   String?
+  classes   Class[]
+  slots     TeacherSlot[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model AcademicSession {
+  id           String        @id @default(cuid())
+  label        String        @unique
+  isActive     Boolean       @default(false)
+  startDate    DateTime
+  endDate      DateTime
+  classes      Class[]
+  students     Student[]
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model SchoolYearLevel {
+  id      String  @id @default(cuid())
+  level   Int     @unique
+  labelBm String
+  classes Class[]
+}
+
+model Class {
+  id          String          @id @default(cuid())
+  sessionId   String
+  session     AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  yearLevelId String
+  yearLevel   SchoolYearLevel @relation(fields: [yearLevelId], references: [id])
+  name        String
+  teacherId   String
+  teacher     Teacher         @relation(fields: [teacherId], references: [id])
+  students    Student[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([sessionId, yearLevelId, name])
+}
+
+model Student {
+  id                 String          @id @default(cuid())
+  studentNo          String          @unique
+  birthCertLookup    String          @unique
+  birthCertEncrypted String?
+  name               String
+  classId         String
+  class           Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  sessionId       String
+  session         AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  appointments    Appointment[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model TeacherSlot {
+  id           String        @id @default(cuid())
+  teacherId    String
+  teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date         DateTime
+  startTime    String
+  isOpen       Boolean       @default(true)
+  maxBookings  Int           @default(1)
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([teacherId, date, startTime])
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  studentId   String
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  slotId      String
+  slot        TeacherSlot       @relation(fields: [slotId], references: [id])
+  sessionId   String
+  session     AcademicSession   @relation(fields: [sessionId], references: [id])
+  parentName  String
+  parentPhone String
+  referenceNo String            @unique
+  reason      AppointmentReason
+  status      AppointmentStatus @default(PENDING)
+  bookedAt    DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model BlackoutDate {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  title     String
+  createdBy String
+  creator   User     @relation(fields: [createdBy], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model VerificationAttempt {
+  id                    String   @id @default(cuid())
+  birthCertLookupPrefix String
+  ipAddress             String
+  failedAt              DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+}
