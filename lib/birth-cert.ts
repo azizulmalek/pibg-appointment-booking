@@ -63,3 +63,21 @@ export function decryptBirthCertForDisplay(encrypted: string | null | undefined)
     return null;
   }
 }
+
+export function isValidBirthCertLast4(input: string): boolean {
+  return /^\d{4}$/.test(normalizeBirthCert(input).slice(-4));
+}
+
+export function verifyBirthCertLast4(
+  encrypted: string | null | undefined,
+  last4Input: string
+): boolean {
+  if (!encrypted) return false;
+  const last4 = normalizeBirthCert(last4Input).slice(-4);
+  if (!/^\d{4}$/.test(last4)) return false;
+  try {
+    return decryptBirthCert(encrypted).slice(-4) === last4;
+  } catch {
+    return false;
+  }
+}

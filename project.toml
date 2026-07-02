@@ -1,0 +1,23 @@
+# Runway buildpack configuration
+# https://www.runway.horse/docs/platform/buildpacks/internals/
+
+[_]
+schema-version = "0.2"
+
+[build]
+  [[build.env]]
+    name = "BP_NODE_RUN_SCRIPTS"
+    value = "build"
+
+  [[build.env]]
+    name = "BP_KEEP_FILES"
+    value = ".next/*:node_modules/.prisma/*:prisma/migrations/*"
+
+[launch]
+  [[launch.env]]
+    name = "PORT"
+    value = "3000"
+
+  [[launch.env]]
+    name = "NODE_ENV"
+    value = "production"
