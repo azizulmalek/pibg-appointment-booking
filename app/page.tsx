@@ -6,6 +6,8 @@ import { SchoolLogo } from "@/components/layout/SchoolLogo";
 import { getLandingData } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const { session, blackouts } = await getLandingData();
 
