@@ -14,6 +14,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-pibg-sk-kementah}"
+POSTGRES_SERVICE_NAME="${RAILWAY_POSTGRES_SERVICE_NAME:-Postgres}"
 SEED=false
 if [[ "${1:-}" == "--seed" ]]; then
   SEED=true
@@ -36,7 +37,6 @@ fi
 
 SERVICE_NAME="${RAILWAY_SERVICE_NAME:-${PROJECT_NAME}}"
 
-# `railway init` links a project but not a service — volume/variable commands need one.
 if ! railway service list --json 2>/dev/null | grep -q '"isLinked": true'; then
   if ! railway service list --json 2>/dev/null | grep -q "\"name\":\"${SERVICE_NAME}\""; then
     echo "Creating Railway service: ${SERVICE_NAME}"
@@ -46,10 +46,9 @@ if ! railway service list --json 2>/dev/null | grep -q '"isLinked": true'; then
   railway service link "${SERVICE_NAME}"
 fi
 
-# SQLite must live on a Railway volume, not the ephemeral container filesystem.
-if ! railway volume list --json 2>/dev/null | grep -q '"/data"'; then
-  echo "Adding persistent volume at /data (required for SQLite)..."
-  railway volume add --mount-path /data
+if ! railway service list --json 2>/dev/null | grep -q "\"name\":\"${POSTGRES_SERVICE_NAME}\""; then
+  echo "Adding Railway Postgres database..."
+  railway add --database postgres --json
 fi
 
 if [ -z "${AUTH_SECRET:-}" ]; then
@@ -61,7 +60,7 @@ fi
 
 echo "Setting environment variables..."
 railway variable set \
-  DATABASE_URL="file:/data/prod.db" \
+  "DATABASE_URL=\${{Postgres.DATABASE_URL}}" \
   AUTH_SECRET="${AUTH_SECRET}" \
   BIRTH_CERT_SECRET="${BIRTH_CERT_SECRET}" \
   NODE_ENV=production \

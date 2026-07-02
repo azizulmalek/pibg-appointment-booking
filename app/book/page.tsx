@@ -2,6 +2,8 @@ import { ParentShell } from "@/components/layout/ParentShell";
 import { VerifyForm } from "@/components/forms/VerifyForm";
 import { verifyParentAction } from "@/lib/actions/parent";
 
+export const dynamic = "force-dynamic";
+
 export default function BookPage() {
   return (
     <ParentShell
