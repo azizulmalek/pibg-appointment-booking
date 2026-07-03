@@ -20,7 +20,7 @@ export function BirthCertInput({
         id={id}
         name={name}
         defaultValue={defaultValue}
-        placeholder="870315-91-5029"
+        placeholder="XXXXXX-XX-XXXX"
         inputMode="numeric"
         autoComplete="off"
         className="text-center text-lg tracking-wide"

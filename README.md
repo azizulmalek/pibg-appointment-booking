@@ -29,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Teacher | guru@skkementah.edu.my | guru123 |
 
 **Sample birth cert numbers (parent booking):**
-- `870315-91-5029`
+- `XXXXXX-XX-XXXX`
 - `120501-10-5015`
 - `150812-08-5032`
 

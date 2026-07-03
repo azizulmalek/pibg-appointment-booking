@@ -187,7 +187,7 @@ export function VerifyAltForm() {
                 id="birthCertLast4"
                 value={last4}
                 onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="5029"
+                placeholder="XXXX"
                 inputMode="numeric"
                 autoComplete="off"
                 className="text-center text-lg tracking-[0.3em]"
@@ -195,7 +195,7 @@ export function VerifyAltForm() {
                 disabled={pending}
               />
               <p className="text-center text-xs text-slate-500">
-                Contoh: untuk 870315-91-<strong>5029</strong>, masukkan <strong>5029</strong>
+                Contoh: untuk XXXXXX-XX-<strong>XXXX</strong>, masukkan <strong>XXXX</strong>
               </p>
             </div>
           )}
