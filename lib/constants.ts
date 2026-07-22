@@ -11,6 +11,13 @@ export const SLOT_TIMES = [
   "12:30",
   "13:00",
   "13:30",
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00",
 ] as const;
 
 export const REASON_LABELS: Record<string, string> = {
